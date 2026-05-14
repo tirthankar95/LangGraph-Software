@@ -66,8 +66,19 @@ async def create_user(payload: CreateUserRequest, db: Session = Depends(get_db))
         "name": user.name,
     }
 
+'''
+The graph instance is stateless. 
+It's just a compiled execution template — it holds the node definitions, edges, and a reference to the checkpointer. 
+It holds zero per-user data itself.
+'''
 graph = graph_build()
 
+
+'''
+Checkpoints after END — they are NOT deleted
+This is the important one. When a graph reaches END, the final checkpoint is written to Postgres and kept permanently. 
+Nothing is cleaned up automatically.
+'''
 @app.post("/reply")
 async def reply(payload: ReplyRequest, db: Session = Depends(get_db)):
     """

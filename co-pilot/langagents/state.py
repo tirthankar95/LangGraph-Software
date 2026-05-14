@@ -1,5 +1,5 @@
 from langgraph.types import interrupt
-from typing import List, TypedDict
+from typing import List, TypedDict, Annotated
 from langagents.llm import LLM
 from langchain_core.messages import (
     BaseMessage,
@@ -7,7 +7,9 @@ from langchain_core.messages import (
     SystemMessage,
     HumanMessage
 )
+import operator
 import re
+
 
 class CoPilotState(TypedDict, total=False):
     """State carried through the CoPilot LangGraph workflow."""
@@ -15,6 +17,7 @@ class CoPilotState(TypedDict, total=False):
     plan: str
     human_feedback: str
     break_plan: List[str]
+    messages: Annotated[list, operator.add]
 
 
 def human_loop(state: CoPilotState) -> CoPilotState:
@@ -38,15 +41,16 @@ def human_loop(state: CoPilotState) -> CoPilotState:
     return updates
 
 def create_plan(state: CoPilotState) -> CoPilotState:
-    prompt = [
-        SystemMessage(content="""You are a helpful assistant. 
+    # Initialize or extend messages
+    messages = list(state.get("messages", []))
+    messages.append(SystemMessage(content="""You are a helpful assistant. 
 You will be given a user's request and your job is to create a clear, step by step plan to address the user's request.
 The sub-plan can ideally be broken down into parallelizable steps, but that is not a requirement.
-Each sub-plan must be decorate within <step>...</step> tags in the response."""),
-        HumanMessage(content=state["user_query"])
-    ]
-    response = LLM.invoke(prompt)
+Each sub-plan must be decorate within <step>...</step> tags in the response."""))
+    messages.append(HumanMessage(content=state["user_query"]))
+    response = LLM.invoke(messages)
     plan = response.content if hasattr(response, "content") else str(response)
-    return {"plan": plan}
+    messages.append(AIMessage(content=plan))
+    return {"plan": plan, "messages": messages}
     
 
